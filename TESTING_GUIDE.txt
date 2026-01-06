@@ -1,0 +1,413 @@
+================================================================================
+                        TESTING AND DEMONSTRATION GUIDE
+                      Secure Client-Server Application
+================================================================================
+
+This guide provides step-by-step instructions for testing and demonstrating
+the secure client-server application.
+
+================================================================================
+TEST 1: BASIC SERVER STARTUP AND CERTIFICATE VERIFICATION
+================================================================================
+
+Step 1: Start the Server
+-------------------------
+Terminal 1:
+    $ python3 server.py
+
+Expected output:
+    [TIMESTAMP] [SERVER] START: Server starting on localhost:8443
+    [TIMESTAMP] [SERVER] LISTEN: Listening for connections
+
+What's happening:
+- Server loads SSL certificate (server.crt, server.key)
+- Creates/loads user database (users.json)
+- Binds to port 8443 with TLS enabled
+- Waits for client connections
+
+Step 2: Verify Certificate
+---------------------------
+Check certificate details:
+    $ openssl x509 -in server.crt -text -noout
+
+Look for:
+- Subject: CN=localhost
+- Issuer: CN=localhost (self-signed)
+- Validity dates
+- Public key: RSA 2048 bit
+
+
+================================================================================
+TEST 2: SUCCESSFUL CLIENT CONNECTION AND AUTHENTICATION
+================================================================================
+
+Step 1: Connect Client
+-----------------------
+Terminal 2:
+    $ python3 client.py
+
+Step 2: Login with Valid Credentials
+-------------------------------------
+Input:
+    Username: admin
+    Password: admin123
+
+Expected client output:
+    Connecting to localhost:8443...
+    SSL established. Protocol: TLSv1.3 (or TLSv1.2)
+    Cipher: TLS_AES_256_GCM_SHA384 (or similar)
+    TLS Version: TLSv1.3
+    Bits: 256
+
+    Certificate Info:
+      Subject: {'commonName': 'localhost'}
+      Issuer: {'commonName': 'localhost'}
+      Not Before: MMM DD HH:MM:SS YYYY GMT
+      Not After : Jan  6 14:33:00 2027 GMT
+
+    Authenticating as admin...
+    Authentication successful!
+
+    Connected! Type messages to send to server (or "quit" to exit)
+    ------------------------------------------------------------
+    >
+
+Expected server output (Terminal 1):
+    [TIMESTAMP] [127.0.0.1:PORT] CONNECT: Client connected
+    [TIMESTAMP] [127.0.0.1:PORT] TLS_INFO: Cipher: TLS_AES_256_GCM_SHA384, Protocol: TLSv1.3
+    [TIMESTAMP] [127.0.0.1:PORT] AUTH_SUCCESS: User admin authenticated
+
+What's happening:
+- Client establishes TCP connection
+- TLS handshake occurs
+- Certificate is verified
+- Encrypted channel established
+- Credentials sent encrypted
+- Server authenticates user
+- Session ready for messages
+
+
+================================================================================
+TEST 3: ENCRYPTED MESSAGE EXCHANGE
+================================================================================
+
+Step 1: Send Messages
+----------------------
+In client (Terminal 2):
+    > Hello Server
+    > This is a test message
+    > Testing encryption
+
+Expected client responses:
+    Server: Echo: Hello Server
+    Server: Echo: This is a test message
+    Server: Echo: Testing encryption
+
+Expected server log (Terminal 1):
+    [TIMESTAMP] [IP:PORT] MESSAGE: From admin: Hello Server
+    [TIMESTAMP] [IP:PORT] RESPONSE: Sent to admin: Echo: Hello Server
+    [TIMESTAMP] [IP:PORT] MESSAGE: From admin: This is a test message
+    [TIMESTAMP] [IP:PORT] RESPONSE: Sent to admin: Echo: This is a test message
+
+What's happening:
+- Messages encrypted by client using session key
+- Transmitted over TLS connection
+- Decrypted by server
+- Server processes and logs message
+- Response encrypted and sent back
+- Client decrypts and displays
+
+
+================================================================================
+TEST 4: FAILED AUTHENTICATION ATTEMPTS
+================================================================================
+
+Step 1: Try Wrong Password
+---------------------------
+Start new client:
+    $ python3 client.py
+
+Input:
+    Username: admin
+    Password: wrongpassword
+
+Expected output:
+    Connecting to localhost:8443...
+    SSL established. Protocol: TLSv1.3
+    ...
+    Authenticating as admin...
+    Authentication failed: ERROR:Invalid credentials
+
+Expected server log:
+    [TIMESTAMP] [IP:PORT] CONNECT: Client connected
+    [TIMESTAMP] [IP:PORT] TLS_INFO: Cipher: ...
+    [TIMESTAMP] [IP:PORT] AUTH_FAIL: Invalid credentials for admin
+    [TIMESTAMP] [IP:PORT] DISCONNECT: Client disconnected
+
+Step 2: Try Non-existent User
+------------------------------
+Start new client, input:
+    Username: hacker
+    Password: password123
+
+Expected result: Authentication failed
+
+Step 3: Try Empty Credentials
+------------------------------
+Input:
+    Username: [press Enter]
+    Password: [press Enter]
+
+Expected result: Username and password required
+
+
+================================================================================
+TEST 5: MULTIPLE CONCURRENT CLIENTS
+================================================================================
+
+Step 1: Start Server
+---------------------
+Terminal 1:
+    $ python3 server.py
+
+Step 2: Connect First Client
+-----------------------------
+Terminal 2:
+    $ python3 client.py
+    Username: admin
+    Password: admin123
+
+Step 3: Connect Second Client
+------------------------------
+Terminal 3:
+    $ python3 client.py
+    Username: user
+    Password: user123
+
+Step 4: Send Messages from Both
+--------------------------------
+Terminal 2:
+    > Message from admin
+
+Terminal 3:
+    > Message from user
+
+Expected result:
+- Both clients work independently
+- Each sees their own echo
+- Server logs both sessions separately
+- No interference between clients
+
+
+================================================================================
+TEST 6: LOG ANALYSIS AFTER TESTING
+================================================================================
+
+After running tests 1-5, analyze the logs:
+
+Step 1: Run Analyzer
+--------------------
+    $ python3 analyze_logs.py
+
+Expected output:
+    ======================================================================
+    LOG ANALYSIS REPORT
+    ======================================================================
+
+    Total Events: 20+ (depends on your testing)
+
+    Event Breakdown:
+      AUTH_FAIL      : 3
+      AUTH_SUCCESS   : 3
+      CONNECT        : 6
+      DISCONNECT     : 6
+      LISTEN         : 1
+      MESSAGE        : 5
+      RESPONSE       : 5
+      START          : 1
+      TLS_INFO       : 6
+
+    CONNECTION ANALYSIS
+    ----------------------------------------------------------------------
+    Total connections: 6
+    Successful authentications: 3
+    Failed authentications: 3
+    Authentication success rate: 50.0%
+
+    ANOMALY DETECTION
+    ----------------------------------------------------------------------
+    [!] HIGH: 3 authentication failures detected
+        Failed authentication attempts by IP:
+          127.0.0.1:PORT: 3 attempts
+
+    RECOMMENDATIONS
+    ----------------------------------------------------------------------
+    - Review authentication mechanism for potential issues
+
+Step 2: Review Recommendations
+-------------------------------
+Check if any security issues detected based on test results.
+
+
+================================================================================
+TEST 7: TLS/SSL VERIFICATION
+================================================================================
+
+Test Certificate Chain:
+------------------------
+    $ openssl s_client -connect localhost:8443 -CAfile server.crt
+
+Expected:
+- Certificate chain displayed
+- Verify return code: 0 (ok)
+- SSL handshake successful
+
+Press Ctrl+C to exit.
+
+Test Without Certificate Verification:
+---------------------------------------
+Modify client.py temporarily to skip verification:
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+
+This demonstrates the importance of certificate verification.
+
+
+================================================================================
+TEST 8: GRACEFUL SHUTDOWN
+================================================================================
+
+Step 1: Client-Initiated Disconnect
+------------------------------------
+In client terminal:
+    > quit
+
+Expected:
+- Client sends QUIT message
+- Connection closed cleanly
+- Server logs disconnect
+
+Step 2: Server Shutdown
+------------------------
+In server terminal:
+    Press Ctrl+C
+
+Expected:
+    [TIMESTAMP] [SERVER] STOP: Server shutting down
+
+All client connections will be closed.
+
+
+================================================================================
+TEST 9: SECURITY VERIFICATION
+================================================================================
+
+Test 1: Verify Passwords Are Hashed
+------------------------------------
+    $ cat users.json
+
+Expected format:
+    {
+      "admin": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+      "user": "04f8996da763b7a969b1028ee3007569eaf3a635486ddab211d512c85b9df8fb"
+    }
+
+Passwords should NOT be in plain text.
+
+Test 2: Verify Traffic Is Encrypted
+------------------------------------
+While server and client are running, capture traffic:
+    $ tcpdump -i lo -A port 8443
+
+You should see:
+- Encrypted gibberish, NOT plain text messages
+- TLS handshake visible
+- Application data encrypted
+
+Test 3: Verify Log Contains All Events
+---------------------------------------
+    $ cat server.log
+
+Check that all connection attempts are logged.
+
+
+================================================================================
+TEST 10: STRESS TESTING
+================================================================================
+
+Test Multiple Failed Logins:
+-----------------------------
+Run this multiple times:
+    $ python3 client.py
+    Username: attacker
+    Password: wrong
+
+Then analyze:
+    $ python3 analyze_logs.py
+
+Expected:
+- High number of AUTH_FAIL events
+- Analyzer detects anomaly
+- Recommendations suggest rate limiting
+
+
+================================================================================
+DEMONSTRATION CHECKLIST
+================================================================================
+
+For a complete demonstration:
+
+[  ] Show certificate generation
+[  ] Start server and explain SSL/TLS setup
+[  ] Connect client and show TLS handshake details
+[  ] Display certificate information
+[  ] Successfully authenticate and send messages
+[  ] Demonstrate failed authentication
+[  ] Show encrypted traffic capture
+[  ] Display server logs
+[  ] Run log analysis
+[  ] Show anomaly detection
+[  ] Explain security features
+[  ] Demonstrate multiple concurrent clients
+
+
+================================================================================
+COMMON ISSUES AND SOLUTIONS
+================================================================================
+
+Issue: "Address already in use"
+Solution: Port 8443 is busy, wait or change port in code
+
+Issue: "Certificate verify failed"
+Solution: Ensure server.crt is in same directory as client.py
+
+Issue: "Connection refused"
+Solution: Server not running, start server first
+
+Issue: "Permission denied"
+Solution: Port 8443 may require privileges, use higher port number
+
+
+================================================================================
+EXPECTED LOG FILE CONTENT
+================================================================================
+
+After complete testing, server.log should contain:
+
+[YYYY-MM-DD 14:00:00] [SERVER] START: Server starting on localhost:8443
+[YYYY-MM-DD 14:00:00] [SERVER] LISTEN: Listening for connections
+[YYYY-MM-DD 14:00:05] [127.0.0.1:54321] CONNECT: Client connected
+[YYYY-MM-DD 14:00:05] [127.0.0.1:54321] TLS_INFO: Cipher: TLS_AES_256_GCM_SHA384, Protocol: TLSv1.3
+[YYYY-MM-DD 14:00:10] [127.0.0.1:54321] AUTH_SUCCESS: User admin authenticated
+[YYYY-MM-DD 14:00:15] [127.0.0.1:54321] MESSAGE: From admin: Hello Server
+[YYYY-MM-DD 14:00:15] [127.0.0.1:54321] RESPONSE: Sent to admin: Echo: Hello Server
+[YYYY-MM-DD 14:00:20] [127.0.0.1:54321] DISCONNECT: Client disconnected
+[YYYY-MM-DD 14:00:25] [127.0.0.1:54322] CONNECT: Client connected
+[YYYY-MM-DD 14:00:25] [127.0.0.1:54322] TLS_INFO: Cipher: TLS_AES_256_GCM_SHA384, Protocol: TLSv1.3
+[YYYY-MM-DD 14:00:30] [127.0.0.1:54322] AUTH_FAIL: Invalid credentials for admin
+[YYYY-MM-DD 14:00:30] [127.0.0.1:54322] DISCONNECT: Client disconnected
+
+
+================================================================================
+END OF TESTING GUIDE
+================================================================================

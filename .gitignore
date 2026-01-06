@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated files
+*.log
+/tmp/
+
+# OS
+.DS_Store
+*.swp
